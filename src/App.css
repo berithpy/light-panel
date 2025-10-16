@@ -52,14 +52,6 @@
   gap: 20px;
 }
 
-.controls h2 {
-  margin: 0 0 20px 0;
-  font-size: 24px;
-  text-align: center;
-  border-bottom: 2px solid #333;
-  padding-bottom: 10px;
-}
-
 .section {
   display: flex;
   flex-direction: column;
@@ -181,7 +173,7 @@
 }
 
 .fullscreen-button {
-  width: 100%;
+  width: 53px;
   padding: 12px;
   background: #333;
   color: white;

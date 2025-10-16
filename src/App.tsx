@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLocalStorage } from '@uidotdev/usehooks'
 import './App.css'
 import { ColorButton } from './ColorButton'
+import OrientationOverlay from './OrientationOverlay'
 
 interface Color {
   r: number
@@ -25,7 +26,7 @@ const PRESET_COLORS = [
 function App() {
   const [color, setColor] = useState<Color>({ r: 255, g: 255, b: 255 })
   const [brightness, setBrightness] = useState(100)
-  const [blinkSpeed, setBlinkSpeed] = useState(0) // 0 means no blink
+  const [blinkSpeed, setBlinkSpeed] = useState(0)
   const [showControls, setShowControls] = useState(true)
   const [isVisible, setIsVisible] = useState(true)
   const [customColors, setCustomColors] = useLocalStorage<(Color | null)[]>('light-panel-custom-colors', [null, null, null, null])
@@ -54,7 +55,7 @@ function App() {
       }, 3000)
     }
 
-    const handleClick = (e: MouseEvent | TouchEvent) => {
+    const handleClick = (e: PointerEvent) => {
       const target = e.target as HTMLElement
 
       // If clicking outside controls, hide them
@@ -67,13 +68,11 @@ function App() {
       }
     }
 
-    window.addEventListener('touchstart', handleClick)
-    window.addEventListener('mousedown', handleClick)
+    window.addEventListener('pointerdown', handleClick)
 
     return () => {
       clearTimeout(timeout)
-      window.removeEventListener('touchstart', handleClick)
-      window.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('pointerdown', handleClick)
     }
   }, [showControls])
 
@@ -109,9 +108,33 @@ function App() {
 
   return (
     <div className="app" style={{ backgroundColor }}>
+      <OrientationOverlay />
       <div className={`controls controls-left ${showControls ? 'visible' : 'hidden'}`}>
         <div className="controls-content">
-          <h2>Light Panel</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3>Light Panel</h3>
+            <button
+              className="fullscreen-button"
+              aria-label="Toggle fullscreen mode"
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  try {
+                    document.documentElement.requestFullscreen()
+                  } catch (error) {
+                    console.error('Failed to enter fullscreen:', error)
+                  }
+                } else {
+                  try {
+                    document.exitFullscreen()
+                  } catch (error) {
+                    console.error('Failed to exit fullscreen:', error)
+                  }
+                }
+              }}
+            >
+              ⛶
+            </button>
+          </div>
 
           <div className="section">
             <h3>Preset Colors</h3>
@@ -199,27 +222,12 @@ function App() {
               </label>
             </div>
           </div>
-
-          <div className="section">
-            <button
-              className="fullscreen-button"
-              onClick={() => {
-                if (!document.fullscreenElement) {
-                  document.documentElement.requestFullscreen()
-                } else {
-                  document.exitFullscreen()
-                }
-              }}
-            >
-              Toggle Fullscreen
-            </button>
-          </div>
         </div>
       </div>
 
       <div className={`controls controls-right ${showControls ? 'visible' : 'hidden'}`}>
         <div className="controls-content">
-          <h2>Settings</h2>
+          <h3>Settings</h3>
 
           <div className="section">
             <h3>Brightness: {brightness}%</h3>
