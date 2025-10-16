@@ -14,25 +14,52 @@ function App() {
   const [brightness, setBrightness] = useState(100)
   const [blinkSpeed, setBlinkSpeed] = useState(0)
   const [showControls, setShowControls] = useState(true)
-  const [isVisible, setIsVisible] = useState(true)
-  const [customColors, setCustomColors] = useLocalStorage<(Color | null)[]>('light-panel-custom-colors', [null, null, null, null])
+  const [currentBlinkIndex, setCurrentBlinkIndex] = useState(0)
+  const [customColors, setCustomColors] = useLocalStorage<Color[]>('light-panel-custom-colors', [
+    { r: 255, g: 0, b: 0 },
+    { r: 0, g: 0, b: 255 }
+  ])
   const [maskShape, setMaskShape] = useLocalStorage<MaskShape>('light-panel-mask-shape', 'none')
   const [maskSize, setMaskSize] = useLocalStorage<number>('light-panel-mask-size', 70)
   const [isMuted, setIsMuted] = useLocalStorage<boolean>('light-panel-muted', false)
+  const [useCustomColorsForBlink, setUseCustomColorsForBlink] = useLocalStorage<boolean>('light-panel-use-custom-colors-blink', true)
+  const [useStrobeEffect, setUseStrobeEffect] = useLocalStorage<boolean>('light-panel-use-strobe', true)
+  const [isShowingBlack, setIsShowingBlack] = useState(false)
 
-  // Handle blinking
+  // Handle blinking - rotate through custom colors with strobe effect
   useEffect(() => {
     if (blinkSpeed === 0) {
-      setIsVisible(true)
+      setCurrentBlinkIndex(0)
+      setIsShowingBlack(false)
       return
     }
 
     const interval = setInterval(() => {
-      setIsVisible(prev => !prev)
+      // If not using custom colors, always strobe (single color on/off)
+      // If using custom colors, respect the strobe setting
+      const shouldStrobe = !useCustomColorsForBlink || useStrobeEffect
+
+      if (shouldStrobe) {
+        // Strobe mode: alternate between color and black
+        setIsShowingBlack(prev => {
+          if (!prev) {
+            // Currently showing color, next show black
+            return true
+          } else {
+            // Currently showing black, advance to next color
+            setCurrentBlinkIndex(prev => (prev + 1) % customColors.length)
+            return false
+          }
+        })
+      } else {
+        // No strobe: just cycle through colors
+        setCurrentBlinkIndex(prev => (prev + 1) % customColors.length)
+        setIsShowingBlack(false)
+      }
     }, blinkSpeed)
 
     return () => clearInterval(interval)
-  }, [blinkSpeed])
+  }, [blinkSpeed, customColors.length, useStrobeEffect, useCustomColorsForBlink])
 
   // Handle metronome click sound
   useEffect(() => {
@@ -47,8 +74,8 @@ function App() {
     oscillator.connect(gainNode)
     gainNode.connect(audioContext.destination)
 
-    // Higher click when visible, lower click when not visible
-    oscillator.frequency.value = isVisible ? 800 : 400
+    // High note when showing color, low note when showing black
+    oscillator.frequency.value = isShowingBlack ? 300 : 600
     oscillator.type = 'sine'
 
     // Use envelope to create a click instead of continuous tone
@@ -62,7 +89,7 @@ function App() {
       oscillator.stop()
       audioContext.close()
     }
-  }, [isMuted, isVisible, blinkSpeed])
+  }, [isMuted, currentBlinkIndex, blinkSpeed, isShowingBlack])
 
   // Hide controls after 3 seconds of inactivity
   useEffect(() => {
@@ -106,10 +133,27 @@ function App() {
     }
   }
 
-  const adjustedColor = applyBrightness(color, brightness)
-  const backgroundColor = isVisible
-    ? rgbToP3(adjustedColor)
-    : 'color(display-p3 0 0 0)'
+  // Use the current blink color when blinking, otherwise use the selected color
+  let displayColor: Color
+
+  // Determine if strobe should be active
+  const shouldStrobe = !useCustomColorsForBlink || useStrobeEffect
+
+  // If blinking is active and strobe is enabled, show black on alternate beats
+  if (blinkSpeed > 0 && isShowingBlack && shouldStrobe) {
+    displayColor = { r: 0, g: 0, b: 0 }
+  } else if (blinkSpeed > 0 && useCustomColorsForBlink && customColors.length > 0) {
+    // Blinking with custom colors
+    displayColor = (currentBlinkIndex >= 0 && currentBlinkIndex < customColors.length)
+      ? customColors[currentBlinkIndex]
+      : color
+  } else {
+    // Not blinking or blinking with single selected color
+    displayColor = color
+  }
+
+  const adjustedColor = applyBrightness(displayColor, brightness)
+  const backgroundColor = rgbToP3(adjustedColor)
 
   const rgbToHex = (color: Color): string => {
     const toHex = (n: number) => n.toString(16).padStart(2, '0')
@@ -125,6 +169,25 @@ function App() {
         b: parseInt(result[3], 16),
       }
       : { r: 0, g: 0, b: 0 }
+  }
+
+  const addCustomColorSlot = (newColor: Color) => {
+    if (customColors.length < 8) {
+      setCustomColors([...customColors, newColor])
+    }
+  }
+
+  const updateCustomColor = (index: number, newColor: Color) => {
+    const newColors = [...customColors]
+    newColors[index] = newColor
+    setCustomColors(newColors)
+  }
+
+  const clearCustomColors = () => {
+    setCustomColors([
+      { r: 255, g: 0, b: 0 },
+      { r: 0, g: 0, b: 255 }
+    ])
   }
 
   const getMaskStyle = () => {
@@ -214,6 +277,28 @@ function App() {
               onChange={(e) => setBlinkSpeed(parseInt(e.target.value))}
               className="slider blink-speed"
             />
+            {blinkSpeed > 0 && (
+              <>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={useCustomColorsForBlink}
+                    onChange={(e) => setUseCustomColorsForBlink(e.target.checked)}
+                  />
+                  <span>Use Custom Colors for Blinking</span>
+                </label>
+                {useCustomColorsForBlink && (
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={useStrobeEffect}
+                      onChange={(e) => setUseStrobeEffect(e.target.checked)}
+                    />
+                    <span>Strobe Effect (Black Between Colors)</span>
+                  </label>
+                )}
+              </>
+            )}
           </div>
 
           <div className="section">
@@ -298,26 +383,36 @@ function App() {
           </div>
 
           <div className="section">
-            <h3>Custom Colors</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3>Custom Colors</h3>
+              <button
+                className="clear-button"
+                onClick={clearCustomColors}
+                title="Reset to default 2 colors"
+              >
+                Clear
+              </button>
+            </div>
             <div className="custom-colors-grid">
               {customColors.map((customColor, index) => (
                 <ColorButton
                   key={index}
-                  color={customColor || { r: 50, g: 50, b: 50 }}
-                  name={customColor ? `Slot ${index + 1}` : `Hold to Save Slot ${index + 1}`}
-                  onClick={() => {
-                    if (customColor) {
-                      setColor(customColor)
-                    }
-                  }}
-                  onLongPress={(newColor) => {
-                    const newColors = [...customColors]
-                    newColors[index] = newColor
-                    setCustomColors(newColors)
-                  }}
+                  color={customColor}
+                  name={`Slot ${index + 1}`}
+                  onClick={() => setColor(customColor)}
+                  onLongPress={(newColor) => updateCustomColor(index, newColor)}
                   longPressColor={color}
                 />
               ))}
+              {customColors.length < 8 && (
+                <button
+                  className="preset-button add-color-button"
+                  onClick={() => addCustomColorSlot(color)}
+                  title="Add current color to custom colors"
+                >
+                  +
+                </button>
+              )}
             </div>
           </div>
 

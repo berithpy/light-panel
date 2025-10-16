@@ -14,19 +14,23 @@ interface ColorButtonProps {
 export function ColorButton({ color, name, onClick, onLongPress, longPressColor }: ColorButtonProps) {
   const [isPressing, setIsPressing] = useState(false)
   const isCurrentlyPressing = useRef(false)
-  const wasCancelled = useRef(false)
+  const longPressTriggered = useRef(false)
   // 1 second in ms
   const threshold = 600
   const longPressAttrs = onLongPress ? useLongPress(
     () => {
+      longPressTriggered.current = true
       onLongPress(longPressColor || color)
       // Reset the pressing state after the callback completes
-      setTimeout(() => setIsPressing(false), threshold)
+      setTimeout(() => {
+        setIsPressing(false)
+        longPressTriggered.current = false
+      }, threshold)
     },
     {
       onStart: () => {
         isCurrentlyPressing.current = true
-        wasCancelled.current = false
+        longPressTriggered.current = false
         // Wait 200ms before showing the pressing state
         // to avoid flickering on quick taps
         // Only show if user is still pressing after 200ms
@@ -42,7 +46,6 @@ export function ColorButton({ color, name, onClick, onLongPress, longPressColor 
       },
       onCancel: () => {
         isCurrentlyPressing.current = false
-        wasCancelled.current = true
         setIsPressing(false)
       },
       threshold: threshold,
@@ -61,11 +64,11 @@ export function ColorButton({ color, name, onClick, onLongPress, longPressColor 
         backgroundColor: rgbToP3(displayColor),
       }}
       onClick={() => {
-        if (!isPressing && !wasCancelled.current) {
+        // Only block the click if a long press was actually triggered
+        // Normal short clicks should always work
+        if (!longPressTriggered.current) {
           onClick()
         }
-        // Reset the cancelled flag after handling the click
-        wasCancelled.current = false
       }}
       title={name}
     >
