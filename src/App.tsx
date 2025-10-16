@@ -3,25 +3,11 @@ import { useLocalStorage } from '@uidotdev/usehooks'
 import './App.css'
 import { ColorButton } from './ColorButton'
 import OrientationOverlay from './OrientationOverlay'
+import { Color, rgbToP3, PRESET_COLORS } from './utils'
 
-interface Color {
-  r: number
-  g: number
-  b: number
-}
+type MaskShape = 'none' | 'circle' | 'square' | 'star' | 'triangle'
 
-const PRESET_COLORS = [
-  { name: 'Red', color: { r: 255, g: 0, b: 0 } },
-  { name: 'Green', color: { r: 0, g: 255, b: 0 } },
-  { name: 'Blue', color: { r: 0, g: 0, b: 255 } },
-  { name: 'Yellow', color: { r: 255, g: 255, b: 0 } },
-  { name: 'Cyan', color: { r: 0, g: 255, b: 255 } },
-  { name: 'Magenta', color: { r: 255, g: 0, b: 255 } },
-  { name: 'White', color: { r: 255, g: 255, b: 255 } },
-  { name: 'Orange', color: { r: 255, g: 165, b: 0 } },
-  { name: 'Purple', color: { r: 128, g: 0, b: 128 } },
-  { name: 'Pink', color: { r: 255, g: 192, b: 203 } },
-]
+const TRIANGLE_WIDTH_EXTRA = 10
 
 function App() {
   const [color, setColor] = useState<Color>({ r: 255, g: 255, b: 255 })
@@ -30,6 +16,11 @@ function App() {
   const [showControls, setShowControls] = useState(true)
   const [isVisible, setIsVisible] = useState(true)
   const [customColors, setCustomColors] = useLocalStorage<(Color | null)[]>('light-panel-custom-colors', [null, null, null, null])
+  const [maskShape, setMaskShape] = useLocalStorage<MaskShape>('light-panel-mask-shape', 'none')
+  const [maskSize, setMaskSize] = useLocalStorage<number>('light-panel-mask-size', 70)
+  const [isMuted, setIsMuted] = useLocalStorage<boolean>('light-panel-muted', false)
+
+  // Handle blinking
   useEffect(() => {
     if (blinkSpeed === 0) {
       setIsVisible(true)
@@ -42,6 +33,36 @@ function App() {
 
     return () => clearInterval(interval)
   }, [blinkSpeed])
+
+  // Handle metronome click sound
+  useEffect(() => {
+    if (isMuted || blinkSpeed === 0) {
+      return
+    }
+
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+
+    // Higher click when visible, lower click when not visible
+    oscillator.frequency.value = isVisible ? 800 : 400
+    oscillator.type = 'sine'
+
+    // Use envelope to create a click instead of continuous tone
+    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.02)
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime + 0.02)
+
+    oscillator.start()
+
+    return () => {
+      oscillator.stop()
+      audioContext.close()
+    }
+  }, [isMuted, isVisible, blinkSpeed])
 
   // Hide controls after 3 seconds of inactivity
   useEffect(() => {
@@ -87,8 +108,8 @@ function App() {
 
   const adjustedColor = applyBrightness(color, brightness)
   const backgroundColor = isVisible
-    ? `rgb(${adjustedColor.r}, ${adjustedColor.g}, ${adjustedColor.b})`
-    : 'rgb(0, 0, 0)'
+    ? rgbToP3(adjustedColor)
+    : 'color(display-p3 0 0 0)'
 
   const rgbToHex = (color: Color): string => {
     const toHex = (n: number) => n.toString(16).padStart(2, '0')
@@ -106,35 +127,161 @@ function App() {
       : { r: 0, g: 0, b: 0 }
   }
 
+  const getMaskStyle = () => {
+    const size = `min(${maskSize}vw, ${maskSize}vh)`
+    const baseStyle = { backgroundColor }
+
+    if (maskShape === 'triangle') {
+      return {
+        ...baseStyle,
+        width: `min(${maskSize + TRIANGLE_WIDTH_EXTRA}vw, ${maskSize + TRIANGLE_WIDTH_EXTRA}vh)`,
+        height: size,
+      }
+    }
+
+    return {
+      ...baseStyle,
+      width: size,
+      height: size,
+    }
+  }
   return (
-    <div className="app" style={{ backgroundColor }}>
+    <div className="app" style={{ backgroundColor: maskShape === 'none' ? backgroundColor : rgbToP3({ r: 0, g: 0, b: 0 }) }}>
       <OrientationOverlay />
-      <div className={`controls controls-left ${showControls ? 'visible' : 'hidden'}`}>
+      {maskShape !== 'none' && (
+        <div
+          className={`mask mask-${maskShape}`}
+          style={getMaskStyle()}
+        />
+      )}
+      <div className={`controls ${showControls ? 'visible' : 'hidden'}`}>
         <div className="controls-content">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3>Light Panel</h3>
-            <button
-              className="fullscreen-button"
-              aria-label="Toggle fullscreen mode"
-              onClick={() => {
-                if (!document.fullscreenElement) {
-                  try {
-                    document.documentElement.requestFullscreen()
-                  } catch (error) {
-                    console.error('Failed to enter fullscreen:', error)
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="fullscreen-button"
+                aria-label={isMuted ? "Unmute blink sound" : "Mute blink sound"}
+                onClick={() => setIsMuted(!isMuted)}
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? '🔇' : '🔊'}
+              </button>
+              <button
+                className="fullscreen-button"
+                aria-label="Toggle fullscreen mode"
+                onClick={() => {
+                  if (!document.fullscreenElement) {
+                    try {
+                      document.documentElement.requestFullscreen()
+                    } catch (error) {
+                      console.error('Failed to enter fullscreen:', error)
+                    }
+                  } else {
+                    try {
+                      document.exitFullscreen()
+                    } catch (error) {
+                      console.error('Failed to exit fullscreen:', error)
+                    }
                   }
-                } else {
-                  try {
-                    document.exitFullscreen()
-                  } catch (error) {
-                    console.error('Failed to exit fullscreen:', error)
-                  }
-                }
-              }}
-            >
-              ⛶
-            </button>
+                }}
+              >
+                ⛶
+              </button>
+            </div>
           </div>
+
+          <div className="section">
+            <h3>Brightness: {brightness}%</h3>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={brightness}
+              onChange={(e) => setBrightness(parseInt(e.target.value))}
+              className="slider brightness"
+            />
+          </div>
+
+          <div className="section">
+            <h3>Blink Speed: {blinkSpeed === 0 ? 'Off' : `${blinkSpeed}ms`}</h3>
+            <input
+              type="range"
+              min="0"
+              max="1000"
+              step="50"
+              value={blinkSpeed}
+              onChange={(e) => setBlinkSpeed(parseInt(e.target.value))}
+              className="slider blink-speed"
+            />
+          </div>
+
+          <div className="section">
+            <h3>Mask Shape</h3>
+            <div className="mask-selector">
+              <button
+                className={`mask-button ${maskShape === 'none' ? 'active' : ''}`}
+                onClick={() => setMaskShape('none')}
+              >
+                None
+              </button>
+              <button
+                className={`mask-button ${maskShape === 'circle' ? 'active' : ''}`}
+                onClick={() => setMaskShape('circle')}
+              >
+                ●
+              </button>
+              <button
+                className={`mask-button ${maskShape === 'square' ? 'active' : ''}`}
+                onClick={() => setMaskShape('square')}
+              >
+                ■
+              </button>
+              <button
+                className={`mask-button ${maskShape === 'star' ? 'active' : ''}`}
+                onClick={() => setMaskShape('star')}
+              >
+                ★
+              </button>
+              <button
+                className={`mask-button ${maskShape === 'triangle' ? 'active' : ''}`}
+                onClick={() => setMaskShape('triangle')}
+              >
+                ▲
+              </button>
+            </div>
+          </div>
+
+          {maskShape !== 'none' && (
+            <div className="section">
+              <h3>Mask Size: {maskSize}%</h3>
+              <div className="mask-size-controls">
+                <button
+                  className="size-button"
+                  onClick={() => setMaskSize(Math.max(10, maskSize - 5))}
+                  aria-label="Decrease mask size"
+                >
+                  −
+                </button>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="5"
+                  value={maskSize}
+                  onChange={(e) => setMaskSize(parseInt(e.target.value))}
+                  className="slider mask-size"
+                />
+                <button
+                  className="size-button"
+                  onClick={() => setMaskSize(Math.min(100, maskSize + 5))}
+                  aria-label="Increase mask size"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="section">
             <h3>Preset Colors</h3>
@@ -221,37 +368,6 @@ function App() {
                 />
               </label>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className={`controls controls-right ${showControls ? 'visible' : 'hidden'}`}>
-        <div className="controls-content">
-          <h3>Settings</h3>
-
-          <div className="section">
-            <h3>Brightness: {brightness}%</h3>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={brightness}
-              onChange={(e) => setBrightness(parseInt(e.target.value))}
-              className="slider brightness"
-            />
-          </div>
-
-          <div className="section">
-            <h3>Blink Speed: {blinkSpeed === 0 ? 'Off' : `${blinkSpeed}ms`}</h3>
-            <input
-              type="range"
-              min="0"
-              max="1000"
-              step="50"
-              value={blinkSpeed}
-              onChange={(e) => setBlinkSpeed(parseInt(e.target.value))}
-              className="slider blink-speed"
-            />
           </div>
         </div>
       </div>

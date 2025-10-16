@@ -1,11 +1,6 @@
 import { useState, useRef } from 'react'
 import { useLongPress } from '@uidotdev/usehooks'
-
-interface Color {
-  r: number
-  g: number
-  b: number
-}
+import { Color, rgbToP3 } from './utils'
 
 interface ColorButtonProps {
   color: Color
@@ -63,7 +58,7 @@ export function ColorButton({ color, name, onClick, onLongPress, longPressColor 
       {...longPressAttrs}
       className={`preset-button ${isPressing ? 'pressing' : ''}`}
       style={{
-        backgroundColor: `rgb(${displayColor.r}, ${displayColor.g}, ${displayColor.b})`,
+        backgroundColor: rgbToP3(displayColor),
       }}
       onClick={() => {
         if (!isPressing && !wasCancelled.current) {

@@ -9,6 +9,7 @@
 .controls {
   position: fixed;
   top: 0;
+  left: 0;
   width: 280px;
   max-width: 40vw;
   height: 100vh;
@@ -18,31 +19,14 @@
   overflow-y: auto;
   transition: transform 0.3s ease;
   z-index: 1000;
-}
-
-.controls-left {
-  left: 0;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
 }
 
-.controls-right {
-  right: 0;
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
-}
-
-.controls-left.hidden {
+.controls.hidden {
   transform: translateX(-100%);
 }
 
-.controls-left.visible {
-  transform: translateX(0);
-}
-
-.controls-right.hidden {
-  transform: translateX(100%);
-}
-
-.controls-right.visible {
+.controls.visible {
   transform: translateX(0);
 }
 
@@ -153,19 +137,19 @@
 }
 
 .slider.red {
-  background: linear-gradient(to right, #000 0%, #f00 100%);
+  background: linear-gradient(to right, color(display-p3 0 0 0) 0%, color(display-p3 1 0 0) 100%);
 }
 
 .slider.green {
-  background: linear-gradient(to right, #000 0%, #0f0 100%);
+  background: linear-gradient(to right, color(display-p3 0 0 0) 0%, color(display-p3 0 1 0) 100%);
 }
 
 .slider.blue {
-  background: linear-gradient(to right, #000 0%, #00f 100%);
+  background: linear-gradient(to right, color(display-p3 0 0 0) 0%, color(display-p3 0 0 1) 100%);
 }
 
 .slider.brightness {
-  background: linear-gradient(to right, #000 0%, #fff 100%);
+  background: linear-gradient(to right, color(display-p3 0 0 0) 0%, color(display-p3 1 1 1) 100%);
 }
 
 .slider.blink-speed {
@@ -198,37 +182,17 @@
   .controls {
     width: 100vw;
     max-width: 100vw;
-  }
-
-  .controls-left {
-    left: 0;
-    right: 0;
     height: auto;
     max-height: 70vh;
-  }
-
-  .controls-right {
     left: 0;
     right: 0;
-    top: auto;
-    bottom: 0;
-    height: auto;
-    max-height: 30vh;
   }
 
-  .controls-left.hidden {
+  .controls.hidden {
     transform: translateY(-100%);
   }
 
-  .controls-left.visible {
-    transform: translateY(0);
-  }
-
-  .controls-right.hidden {
-    transform: translateY(100%);
-  }
-
-  .controls-right.visible {
+  .controls.visible {
     transform: translateY(0);
   }
 }
@@ -259,4 +223,111 @@
   -ms-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Mask Shapes */
+.mask {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: background-color 0.1s ease;
+  z-index: 1;
+}
+
+.mask-circle {
+  border-radius: 50%;
+}
+
+:root {
+  --star-mask-url: url(/assets/round-star.svg);
+}
+
+.mask-star {
+  -webkit-mask-image: var(--star-mask-url);
+  mask-image: var(--star-mask-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.mask-triangle {
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+/* Mask Selector */
+.mask-selector {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.mask-button {
+  padding: 12px 8px;
+  background: #333;
+  color: white;
+  border: 2px solid #555;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mask-button:hover {
+  background: #444;
+  border-color: #777;
+}
+
+.mask-button.active {
+  background: #555;
+  border-color: white;
+}
+
+.mask-button:active {
+  transform: scale(0.95);
+}
+
+/* Mask Size Controls */
+.mask-size-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.size-button {
+  width: 40px;
+  height: 40px;
+  background: #333;
+  color: white;
+  border: 2px solid #555;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.size-button:hover {
+  background: #444;
+  border-color: #777;
+}
+
+.size-button:active {
+  transform: scale(0.95);
+  background: #222;
+}
+
+.slider.mask-size {
+  flex: 1;
+  background: linear-gradient(to right, #222 0%, #888 100%);
 }
