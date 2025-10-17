@@ -78,3 +78,11 @@ pnpm deploy
 ## License
 
 MIT
+
+## Some quick examples
+These were taken at 1000 or 800 iso, f18 and a shutter speed of 20 seconds or more with a small flash to the side
+<img width="612" height="638" alt="image" src="https://github.com/user-attachments/assets/b65881ce-0cd2-400d-ac64-26331f49d5b9" />
+<img width="607" height="711" alt="image" src="https://github.com/user-attachments/assets/f2580814-f2a4-4fcb-b4ac-34d4cb7594fb" />
+<img width="1331" height="614" alt="image" src="https://github.com/user-attachments/assets/172a8c5f-85da-4833-8873-59b75680a73e" />
+
+
