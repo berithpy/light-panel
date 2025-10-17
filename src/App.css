@@ -23,7 +23,7 @@
 }
 
 .controls.hidden {
-  transform: translateX(-100%);
+  transform: translateX(-102%);
 }
 
 .controls.visible {
@@ -189,7 +189,7 @@
   }
 
   .controls.hidden {
-    transform: translateY(-100%);
+    transform: translateY(-102%);
   }
 
   .controls.visible {
@@ -298,11 +298,35 @@
 
 :root {
   --star-mask-url: url(/assets/round-star.svg);
+  --heart-mask-url: url(/assets/heart.svg);
+  --heart-solid-mask-url: url(/assets/heart-solid.svg);
 }
 
 .mask-star {
   -webkit-mask-image: var(--star-mask-url);
   mask-image: var(--star-mask-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.mask-heart {
+  -webkit-mask-image: var(--heart-mask-url);
+  mask-image: var(--heart-mask-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.mask-heart-solid {
+  -webkit-mask-image: var(--heart-solid-mask-url);
+  mask-image: var(--heart-solid-mask-url);
   -webkit-mask-size: contain;
   mask-size: contain;
   -webkit-mask-repeat: no-repeat;
@@ -320,6 +344,13 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 8px;
+}
+
+.flag-selector {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  justify-content: space-between;
 }
 
 .mask-button {

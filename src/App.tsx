@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocalStorage } from '@uidotdev/usehooks'
 import './App.css'
 import { ColorButton } from './ColorButton'
 import OrientationOverlay from './OrientationOverlay'
 import { Color, rgbToP3, PRESET_COLORS } from './utils'
 
-type MaskShape = 'none' | 'circle' | 'square' | 'star' | 'triangle'
+type MaskShape = 'none' | 'circle' | 'square' | 'star' | 'triangle' | 'heart' | 'heart-solid'
 
 const TRIANGLE_WIDTH_EXTRA = 10
 
@@ -19,17 +19,32 @@ function App() {
     { r: 255, g: 0, b: 0 },
     { r: 0, g: 0, b: 255 }
   ])
-  const [maskShape, setMaskShape] = useLocalStorage<MaskShape>('light-panel-mask-shape', 'none')
+  const [selectedMaskShapes, setSelectedMaskShapes] = useLocalStorage<MaskShape[]>('light-panel-mask-shapes', ['none'])
+  const [currentMaskIndex, setCurrentMaskIndex] = useState(0)
   const [maskSize, setMaskSize] = useLocalStorage<number>('light-panel-mask-size', 70)
   const [isMuted, setIsMuted] = useLocalStorage<boolean>('light-panel-muted', false)
   const [useCustomColorsForBlink, setUseCustomColorsForBlink] = useLocalStorage<boolean>('light-panel-use-custom-colors-blink', true)
   const [useStrobeEffect, setUseStrobeEffect] = useLocalStorage<boolean>('light-panel-use-strobe', true)
   const [isShowingBlack, setIsShowingBlack] = useState(false)
+  const [showAllCustomColors, setShowAllCustomColors] = useLocalStorage<boolean>('light-panel-show-all-custom-colors', false)
+  const [horizontalColorSplit, setHorizontalColorSplit] = useLocalStorage<boolean>('light-panel-horizontal-color-split', true)
 
-  // Handle blinking - rotate through custom colors with strobe effect
+  // Helper function to get shapes that should rotate (excluding 'none')
+  const getShapeRotation = () => selectedMaskShapes.filter(s => s !== 'none')
+
+  // Helper function to advance to next mask if multiple shapes are selected
+  const advanceToNextMask = () => {
+    const shapesToRotate = getShapeRotation()
+    if (shapesToRotate.length > 1) {
+      setCurrentMaskIndex(prev => (prev + 1) % shapesToRotate.length)
+    }
+  }
+
+  // Handle blinking - rotate through custom colors and mask shapes with strobe effect
   useEffect(() => {
     if (blinkSpeed === 0) {
       setCurrentBlinkIndex(0)
+      setCurrentMaskIndex(0)
       setIsShowingBlack(false)
       return
     }
@@ -46,20 +61,22 @@ function App() {
             // Currently showing color, next show black
             return true
           } else {
-            // Currently showing black, advance to next color
+            // Currently showing black, advance to next color and mask
             setCurrentBlinkIndex(prev => (prev + 1) % customColors.length)
+            advanceToNextMask()
             return false
           }
         })
       } else {
-        // No strobe: just cycle through colors
+        // No strobe: just cycle through colors and masks
         setCurrentBlinkIndex(prev => (prev + 1) % customColors.length)
+        advanceToNextMask()
         setIsShowingBlack(false)
       }
     }, blinkSpeed)
 
     return () => clearInterval(interval)
-  }, [blinkSpeed, customColors.length, useStrobeEffect, useCustomColorsForBlink])
+  }, [blinkSpeed, customColors.length, useStrobeEffect, useCustomColorsForBlink, selectedMaskShapes])
 
   // Handle metronome click sound
   useEffect(() => {
@@ -124,14 +141,14 @@ function App() {
     }
   }, [showControls])
 
-  const applyBrightness = (color: Color, brightness: number): Color => {
+  const applyBrightness = useCallback((color: Color, brightness: number): Color => {
     const factor = brightness / 100
     return {
       r: Math.round(color.r * factor),
       g: Math.round(color.g * factor),
       b: Math.round(color.b * factor),
     }
-  }
+  }, [])
 
   // Use the current blink color when blinking, otherwise use the selected color
   let displayColor: Color
@@ -155,12 +172,40 @@ function App() {
   const adjustedColor = applyBrightness(displayColor, brightness)
   const backgroundColor = rgbToP3(adjustedColor)
 
-  const rgbToHex = (color: Color): string => {
-    const toHex = (n: number) => n.toString(16).padStart(2, '0')
-    return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`
+  // Create split background gradient for custom colors
+  const getSplitBackground = (useBlinkColor: boolean = false): string => {
+    if (!showAllCustomColors || customColors.length < 2) {
+      return backgroundColor
+    }
+
+    // When blinking with strobe effect showing black, return black for all splits
+    if (useBlinkColor && blinkSpeed > 0 && isShowingBlack && shouldStrobe) {
+      return rgbToP3({ r: 0, g: 0, b: 0 })
+    }
+
+    const percentage = 100 / customColors.length
+    const gradientStops = customColors.map((color, index) => {
+      const adjustedColor = applyBrightness(color, brightness)
+      const colorString = rgbToP3(adjustedColor)
+      const startPercent = index * percentage
+      const endPercent = (index + 1) * percentage
+      return `${colorString} ${startPercent}%, ${colorString} ${endPercent}%`
+    }).join(', ')
+
+    const direction = horizontalColorSplit ? 'to bottom' : 'to right'
+    return `linear-gradient(${direction}, ${gradientStops})`
   }
 
-  const hexToRgb = (hex: string): Color => {
+  const backgroundStyle = showAllCustomColors && customColors.length >= 2
+    ? getSplitBackground(true)
+    : backgroundColor
+
+  const rgbToHex = useCallback((color: Color): string => {
+    const toHex = (n: number) => n.toString(16).padStart(2, '0')
+    return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`
+  }, [])
+
+  const hexToRgb = useCallback((hex: string): Color => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result
       ? {
@@ -169,32 +214,74 @@ function App() {
         b: parseInt(result[3], 16),
       }
       : { r: 0, g: 0, b: 0 }
-  }
+  }, [])
 
-  const addCustomColorSlot = (newColor: Color) => {
+  const addCustomColorSlot = useCallback((newColor: Color) => {
     if (customColors.length < 8) {
       setCustomColors([...customColors, newColor])
     }
-  }
+  }, [customColors, setCustomColors])
 
-  const updateCustomColor = (index: number, newColor: Color) => {
+  const updateCustomColor = useCallback((index: number, newColor: Color) => {
     const newColors = [...customColors]
     newColors[index] = newColor
     setCustomColors(newColors)
-  }
+  }, [customColors, setCustomColors])
 
-  const clearCustomColors = () => {
+  const clearCustomColors = useCallback(() => {
     setCustomColors([
       { r: 255, g: 0, b: 0 },
       { r: 0, g: 0, b: 255 }
     ])
+  }, [setCustomColors])
+
+  // Helper function to toggle mask shape selection
+  const toggleMaskShape = useCallback((shape: MaskShape) => {
+    if (shape === 'none') {
+      // If clicking 'none', set only 'none'
+      setSelectedMaskShapes(['none'])
+      setCurrentMaskIndex(0)
+    } else {
+      setSelectedMaskShapes(prev => {
+        // Remove 'none' if present
+        const withoutNone = prev.filter(s => s !== 'none')
+
+        if (withoutNone.includes(shape)) {
+          // If shape is already selected, remove it
+          const newShapes = withoutNone.filter(s => s !== shape)
+          // If no shapes left, default to 'none'
+          return newShapes.length === 0 ? ['none'] : newShapes
+        } else {
+          // Add the shape
+          return [...withoutNone, shape]
+        }
+      })
+    }
+  }, [setSelectedMaskShapes, setCurrentMaskIndex])
+
+  // Get the current mask shape to display
+  const getCurrentMaskShape = (): MaskShape => {
+    const shapesToShow = getShapeRotation()
+    if (shapesToShow.length === 0) return 'none'
+    if (shapesToShow.length === 1) return shapesToShow[0]
+    // When blinking with multiple shapes, rotate through them
+    if (blinkSpeed > 0) {
+      return shapesToShow[currentMaskIndex % shapesToShow.length]
+    }
+    // When not blinking, show the first selected shape
+    return shapesToShow[0]
   }
+
+  const currentMaskShape = getCurrentMaskShape()
 
   const getMaskStyle = () => {
     const size = `min(${maskSize}vw, ${maskSize}vh)`
-    const baseStyle = { backgroundColor }
+    const maskBackground = showAllCustomColors && customColors.length >= 2
+      ? getSplitBackground(true)
+      : backgroundColor
+    const baseStyle = { background: maskBackground }
 
-    if (maskShape === 'triangle') {
+    if (currentMaskShape === 'triangle') {
       return {
         ...baseStyle,
         width: `min(${maskSize + TRIANGLE_WIDTH_EXTRA}vw, ${maskSize + TRIANGLE_WIDTH_EXTRA}vh)`,
@@ -208,12 +295,22 @@ function App() {
       height: size,
     }
   }
+
+  const hasAnyMaskActive = selectedMaskShapes.length > 0 && !selectedMaskShapes.includes('none')
+
   return (
-    <div className="app" style={{ backgroundColor: maskShape === 'none' ? backgroundColor : rgbToP3({ r: 0, g: 0, b: 0 }) }}>
+    <div
+      className="app"
+      style={{
+        background: hasAnyMaskActive
+          ? rgbToP3({ r: 0, g: 0, b: 0 })
+          : backgroundStyle
+      }}
+    >
       <OrientationOverlay />
-      {maskShape !== 'none' && (
+      {hasAnyMaskActive && (
         <div
-          className={`mask mask-${maskShape}`}
+          className={`mask mask-${currentMaskShape}`}
           style={getMaskStyle()}
         />
       )}
@@ -279,65 +376,79 @@ function App() {
             />
             {blinkSpeed > 0 && (
               <>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={useCustomColorsForBlink}
-                    onChange={(e) => setUseCustomColorsForBlink(e.target.checked)}
-                  />
-                  <span>Use Custom Colors for Blinking</span>
-                </label>
+                <div className="mask-selector">
+                  <button
+                    className={`mask-button ${useCustomColorsForBlink ? 'active' : ''}`}
+                    onClick={() => setUseCustomColorsForBlink(!useCustomColorsForBlink)}
+                    style={{ gridColumn: '1 / -1' }}
+                  >
+                    Rotate colors
+                  </button>
+                </div>
                 {useCustomColorsForBlink && (
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={useStrobeEffect}
-                      onChange={(e) => setUseStrobeEffect(e.target.checked)}
-                    />
-                    <span>Strobe Effect (Black Between Colors)</span>
-                  </label>
+                  <div className="mask-selector">
+                    <button
+                      className={`mask-button ${useStrobeEffect ? 'active' : ''}`}
+                      onClick={() => setUseStrobeEffect(!useStrobeEffect)}
+                      style={{ gridColumn: '1 / -1' }}
+                    >
+                      Strobe Effect
+                    </button>
+                  </div>
                 )}
               </>
             )}
           </div>
 
           <div className="section">
-            <h3>Mask Shape</h3>
+            <h3>Mask Shape {selectedMaskShapes.filter(s => s !== 'none').length > 1 ? '(Multiple)' : ''}</h3>
             <div className="mask-selector">
               <button
-                className={`mask-button ${maskShape === 'none' ? 'active' : ''}`}
-                onClick={() => setMaskShape('none')}
+                className={`mask-button ${selectedMaskShapes.includes('none') && selectedMaskShapes.length === 1 ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('none')}
               >
                 None
               </button>
               <button
-                className={`mask-button ${maskShape === 'circle' ? 'active' : ''}`}
-                onClick={() => setMaskShape('circle')}
+                className={`mask-button ${selectedMaskShapes.includes('circle') ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('circle')}
               >
                 ●
               </button>
               <button
-                className={`mask-button ${maskShape === 'square' ? 'active' : ''}`}
-                onClick={() => setMaskShape('square')}
+                className={`mask-button ${selectedMaskShapes.includes('square') ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('square')}
               >
                 ■
               </button>
               <button
-                className={`mask-button ${maskShape === 'star' ? 'active' : ''}`}
-                onClick={() => setMaskShape('star')}
+                className={`mask-button ${selectedMaskShapes.includes('triangle') ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('triangle')}
+              >
+                ▲
+              </button>
+              <button
+                className={`mask-button ${selectedMaskShapes.includes('star') ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('star')}
               >
                 ★
               </button>
               <button
-                className={`mask-button ${maskShape === 'triangle' ? 'active' : ''}`}
-                onClick={() => setMaskShape('triangle')}
+                className={`mask-button ${selectedMaskShapes.includes('heart') ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('heart')}
               >
-                ▲
+                ♡
+              </button>
+              <button
+                className={`mask-button ${selectedMaskShapes.includes('heart-solid') ? 'active' : ''}`}
+                onClick={() => toggleMaskShape('heart-solid')}
+              >
+                ♥
               </button>
             </div>
           </div>
 
-          {maskShape !== 'none' && (
+          {hasAnyMaskActive && (
             <div className="section">
               <h3>Mask Size: {maskSize}%</h3>
               <div className="mask-size-controls">
@@ -393,6 +504,7 @@ function App() {
                 Clear
               </button>
             </div>
+
             <div className="custom-colors-grid">
               {customColors.map((customColor, index) => (
                 <ColorButton
@@ -414,8 +526,37 @@ function App() {
                 </button>
               )}
             </div>
-          </div>
+            {customColors.length >= 2 && (
+              <div className="mask-selector">
+                <button
+                  className={`mask-button ${showAllCustomColors ? 'active' : ''}`}
+                  onClick={() => setShowAllCustomColors(!showAllCustomColors)}
+                  style={{ gridColumn: '1 / -1' }}
+                >
+                  Flag Mode
+                </button>
+              </div>
+            )}
+            {showAllCustomColors && customColors.length >= 2 && (
+              <div className="flag-selector">
+                <button
+                  className={`mask-button ${!horizontalColorSplit ? 'active' : ''}`}
+                  onClick={() => setHorizontalColorSplit(false)}
+                  style={{ width: '100%' }}
+                >
+                  Vertical
+                </button>
+                <button
+                  className={`mask-button ${horizontalColorSplit ? 'active' : ''}`}
+                  onClick={() => setHorizontalColorSplit(true)}
+                  style={{ width: '100%' }}
 
+                >
+                  Horizontal
+                </button>
+              </div>
+            )}
+          </div>
           <div className="section">
             <h3>Color Picker</h3>
             <input
