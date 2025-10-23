@@ -307,7 +307,6 @@ function App() {
           : backgroundStyle
       }}
     >
-      <OrientationOverlay />
       {hasAnyMaskActive && (
         <div
           className={`mask mask-${currentMaskShape}`}
