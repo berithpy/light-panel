@@ -22,7 +22,7 @@ function App() {
   const [selectedMaskShapes, setSelectedMaskShapes] = useLocalStorage<MaskShape[]>('light-panel-mask-shapes', ['none'])
   const [currentMaskIndex, setCurrentMaskIndex] = useState(0)
   const [maskSize, setMaskSize] = useLocalStorage<number>('light-panel-mask-size', 70)
-  const [isMuted, setIsMuted] = useLocalStorage<boolean>('light-panel-muted', false)
+  const [isMuted, setIsMuted] = useLocalStorage<boolean>('light-panel-muted', true)
   const [useCustomColorsForBlink, setUseCustomColorsForBlink] = useLocalStorage<boolean>('light-panel-use-custom-colors-blink', true)
   const [useStrobeEffect, setUseStrobeEffect] = useLocalStorage<boolean>('light-panel-use-strobe', true)
   const [isShowingBlack, setIsShowingBlack] = useState(false)
@@ -604,6 +604,12 @@ function App() {
                 />
               </label>
             </div>
+          </div>
+
+          <div className="section about-section">
+            <p>
+              Made by <a href="https://berith.moe" target="_blank" rel="noopener noreferrer">berith.moe</a>
+            </p>
           </div>
         </div>
       </div>
