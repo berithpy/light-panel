@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLocalStorage } from '@uidotdev/usehooks'
 import './App.css'
 import { ColorButton } from './ColorButton'
-import OrientationOverlay from './OrientationOverlay'
 import { Color, rgbToP3, PRESET_COLORS } from './utils'
 
 type MaskShape = 'none' | 'circle' | 'square' | 'star' | 'triangle' | 'heart' | 'heart-solid'
